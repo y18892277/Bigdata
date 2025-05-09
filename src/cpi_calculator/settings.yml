@@ -1,8 +1,26 @@
 default:
-  # 日志输出级别, DEBUG: 10, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50
   LOGGING_LEVEL: 10
-  # 日志格式
   LOGGING_FORMAT: "[%(asctime)s] [%(name)s:%(lineno)d] %(levelname)s: %(message)s"
-dev:
-test:
+  DATABASE:
+    TYPE: clickhouse
+    HOST: 127.0.0.1
+    PORT: 9000
+
 prod:
+  OSS:
+    ENDPOINT: "oss-cn-hangzhou.aliyuncs.com"
+    BUCKET: "cpi-data-bucket"
+  DATABASE:
+    USER: "admin"
+  ALGORITHM: "chain"
+  OUTPUT:
+    REPORT: "./reports/daily_cpi_{date}.html"
+    PLOT_ENGINE: "quickbi"
+
+dev:
+  OSS:
+    ENDPOINT: "localhost:9000"
+    BUCKET: "test-bucket"
+  DATABASE:
+    USER: "dev_user"
+    PASSWORD: "dev_pass"

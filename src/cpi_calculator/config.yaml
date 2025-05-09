@@ -1,0 +1,12 @@
+   # 示例 config.yaml
+   oss:
+     endpoint: "oss-cn-hangzhou.aliyuncs.com"
+     bucket: "cpi-data-bucket"
+   clickhouse:
+     host: "127.0.0.1"
+     port: 9000
+     user: "admin"
+   algorithm: "chain"  # chain/fixed
+   output:
+     report: "./reports/daily_cpi_{date}.html"
+     plot_engine: "quickbi"  # quickbi/matplotlib
