@@ -4,23 +4,7 @@
 本项目基于电商平台公开数据构建日频消费者价格指数，采用云服务进行数据管理与计算，实现高效、可复用的指数计算系统。整体架构分为三个核心模块：
 
 ```
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│  数据加载     │   │  指数计算   │    │  可视化输出  │
-│(OSS+CH引擎)   │─> │    (链式)    │─> │(QuickBI/本地) │
-└──────────────┘   └──────────────┘   ────────────── ┘
-```
-
-
-## 模块交互流程
-```
-1. 配置加载
-   └─ dynaconf从settings.yml读取环境配置
-2. 数据加载
-   └─ OSSDataLoader通过CH引擎加载价格数据和分类映射
-3. 指数计算
-   └─ ChainIndexCalculator/FixedBaseCalculator执行计算
-4. 结果输出
-   └─ ReportGenerator生成可视化报告
+数据导入(从天池到oss)->外部表映射(clickhouse访问oss)->指数计算(链式)─>可视化输出(QuickBI/本地)
 ```
 
 
@@ -38,19 +22,9 @@
 
 
 ### 2. 数据加载 (loader.py)
-- **OSSDataLoader** 实现：
-  - 通过ClickHouse外部表查询OSS数据
-  - 加载价格数据（支持日期范围筛选）
-  - 加载分类映射表（CSV格式）
-
-- 存在问题：
-  ```python
-  # 查询存在SQL注入风险
-  query = f"WHERE date BETWEEN '{start_date}' AND '{end_date}'"
-  # 建议改为参数化查询
-  query = "WHERE date BETWEEN %(start)s AND %(end)s"
-  self.ch_client.execute(query, {"start": start_date, "end": end_date})
-  ```
+- 安全地连接 OSS（对象存储服务），通过 STS 获取临时凭证，避免明文泄露。   
+- 高效地连接 ClickHouse 数据库，支持连接池与预编译 SQL 提升性能。   
+- 封装价格数据与分类映射的读取方法，将 OSS 和 ClickHouse 的查询统一起来。
 
 
 ### 3. 指数计算 (calculator.py)
@@ -64,32 +38,34 @@
   ├─ _calculate_category_index()  # 分类指数计算
   └─ _calculate_weighted_cpi()    # 加权计算总指数
   ```
+根据论文中描述的方法，总结计算消费者价格指数（CPI）的关键步骤如下：
 
 
-- 存在问题：
-  ```python
-  # 返回值类型不匹配
-  def compute(...) -> float:  # 返回单个数值
-  # 但主程序期望DataFrame
-  result_df = calculator.compute(...)  # 类型不匹配
-  ```
+- **CPI 计算方法总结**
+
+- 类别内价格变化计算  
+   • 几何平均法：计算每个类别内所有商品的日价格变化率，使用未加权几何平均：  
+
+     $$R_{t, t-1}^{j} = \prod_{i}\left(\frac{p_{t}^{i}}{p_{t-1}^{i}}\right)^{1/ n_{j,t}}$$  
+     其中，\(p_t^i\) 为商品i在时间t的价格，\(n_{j,t}\) 为类别j中当日有效商品数量。  
+
+- 类别指数构建  
+   • 累积价格变化：将每日价格变化率连续相乘，生成类别指数：  
+
+     $$\dot{p}_t^j = R_{1,0}^j \cdot R_{2,1}^j \ldots R_{t,t-1}^j$$  
+
+- 总指数加权汇总  
+   • 加权算术平均：将各分类指数按官方权重汇总为总CPI：  
+
+     $$S_{t} = \sum_{j}\frac{w^{j}}{W}\dot{p}_{t}^{j}$$  
+     其中，\(w^j\) 为类别j的官方权重，\(W\) 为总权重。  
+
+
 
 
 ### 4. 可视化输出 (visualizer.py)
-- **ReportGenerator** 实现：
-  - QuickBI模式：待实现API调用逻辑
-  - 本地模式：使用matplotlib生成图表
+- 基于Matplotlib/Plotly生成交互式图表
 
-- 存在问题：
-  ```python
-  # QuickBI方法未实现
-  def _generate_quickbi_report(): 
-      pass  # 需要补充API调用逻辑
-  
-  # 本地报告缺少异常处理
-  def _generate_local_report():
-      plt.savefig(output_path)  # 未处理文件写入失败情况
-  ```
 
 
 ## 数据流分析
